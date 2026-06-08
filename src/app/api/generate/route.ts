@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { buildPromptPayPayload, validateProxy } from '@/lib/promptpay'
 import { supabaseAdmin } from '@/lib/supabase'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 import type { ProxyType } from '@/lib/database.types'
 
 export interface GenerateRequest {
@@ -20,6 +21,17 @@ export interface GenerateResponse {
 
 export async function POST(req: NextRequest) {
   try {
+    // ดึง session จาก cookie
+    const supabaseServer = createSupabaseServerClient()
+    const {
+      data: { user },
+    } = await supabaseServer.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    const userId = user.id
+
     const body: GenerateRequest = await req.json()
     const { proxyType, proxyValue, bankCode, bankName, amount, recipientName } = body
 
@@ -43,7 +55,7 @@ export async function POST(req: NextRequest) {
       amount: amount && amount > 0 ? amount : undefined,
     })
 
-    // Save to Supabase
+    // Save to Supabase (ใช้ admin เพื่อ bypass RLS แต่ใส่ user_id ด้วย)
     const { data, error } = await supabaseAdmin
       .from('qr_payments')
       .insert({
@@ -54,6 +66,7 @@ export async function POST(req: NextRequest) {
         amount: amount && amount > 0 ? amount : null,
         recipient_name: recipientName?.trim() || null,
         qr_payload: qrPayload,
+        user_id: userId,
       })
       .select('id, created_at')
       .single()
