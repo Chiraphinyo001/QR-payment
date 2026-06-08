@@ -56,7 +56,6 @@ function ThemeSelector({ theme, onChange }: { theme: Theme; onChange: (t: Theme)
   const options: { value: Theme; label: string; icon: string }[] = [
     { value: 'light',  label: 'สว่าง',  icon: '☀️' },
     { value: 'dark',   label: 'มืด',    icon: '🌙' },
-    { value: 'system', label: 'ระบบ',   icon: '💻' },
   ]
   return (
     <div className="flex gap-1.5">
@@ -87,6 +86,7 @@ interface SettingsModalProps {
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [theme, setTheme] = useState<Theme>('light')
   const [showKey, setShowKey] = useState(false)
+  const [showUrl, setShowUrl] = useState(false)
   
   const [isThemeOpen, setIsThemeOpen] = useState(false)
   const [isApiOpen, setIsApiOpen] = useState(false)
@@ -171,17 +171,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               <div className="p-4 pt-2 border-t border-gray-100 dark:border-gray-800 space-y-4 animate-fade-in">
                 <p className="text-xs text-gray-500 dark:text-gray-400">เลือกธีมการแสดงผลของแอป</p>
                 <ThemeSelector theme={theme} onChange={handleThemeChange} />
-                <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/50 rounded-xl">
-                  <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <p className="text-xs text-blue-600 dark:text-blue-400">
-                    ธีมปัจจุบัน: <span className="font-semibold">
-                      {theme === 'light' ? '☀️ สว่าง' : theme === 'dark' ? '🌙 มืด' : '💻 ตามระบบ'}
-                    </span>
-                    {' '}— บันทึกอัตโนมัติ
-                  </p>
-                </div>
               </div>
             )}
           </div>
@@ -193,7 +182,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               className="w-full flex items-center justify-between p-4 bg-gray-50/50 dark:bg-gray-800/20 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
             >
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <span>🔑</span> ข้อมูล API
+                <span>🔑</span> API
               </h3>
               <svg className={`w-4 h-4 text-gray-400 transition-transform ${isApiOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -205,10 +194,18 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
 
                 {/* Supabase URL */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Supabase URL</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Supabase URL</label>
+                    <button
+                      onClick={() => setShowUrl(v => !v)}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      {showUrl ? '🙈 ซ่อน' : '👁 แสดง'}
+                    </button>
+                  </div>
                   <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
                     <code className="flex-1 text-xs text-gray-700 dark:text-gray-300 font-mono truncate">
-                      {supabaseUrl || '—'}
+                      {showUrl ? supabaseUrl : (supabaseUrl ? maskKey(supabaseUrl) : '—')}
                     </code>
                     {supabaseUrl && <CopyButton value={supabaseUrl} label="URL" />}
                   </div>
@@ -231,30 +228,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                     </code>
                     {anonKey && <CopyButton value={anonKey} label="Key" />}
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500">🔒 ใช้ได้เฉพาะฝั่ง client (safe to expose)</p>
-                </div>
-
-                {/* API Endpoints */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-gray-700 dark:text-gray-300">App API Endpoints</label>
-                  <div className="space-y-1.5">
-                    {[
-                      { method: 'POST', path: '/api/generate', desc: 'สร้าง QR Code' },
-                      { method: 'GET',  path: '/api/payments', desc: 'ดูประวัติ QR' },
-                      { method: 'DELETE', path: '/api/payments?id=', desc: 'ลบ QR Code' },
-                    ].map(ep => (
-                      <div key={ep.path} className="flex items-center gap-2.5 p-2.5
-                                                     bg-gray-50 dark:bg-gray-800 rounded-xl">
-                        <span className={`text-xs font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                          ep.method === 'POST'   ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-400' :
-                          ep.method === 'DELETE' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-400' :
-                                                   'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-400'
-                        }`}>{ep.method}</span>
-                        <code className="flex-1 text-xs text-gray-700 dark:text-gray-300 font-mono">{ep.path}</code>
-                        <span className="text-xs text-gray-400">{ep.desc}</span>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
             )}
@@ -267,7 +240,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
               className="w-full flex items-center justify-between p-4 bg-gray-50/50 dark:bg-gray-800/20 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
             >
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <span>ℹ️</span> เวอร์ชันแอปพลิเคชัน
+                <span>ℹ️</span> เวอร์ชัน
               </h3>
               <svg className={`w-4 h-4 text-gray-400 transition-transform ${isAboutOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -296,27 +269,6 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                       v{APP_VERSION}
                     </span>
                   </div>
-                </div>
-
-                {/* Dependencies */}
-                <div className="space-y-1.5 mt-4">
-                  <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Dependencies</label>
-                  {[
-                    { name: 'Next.js',           version: NEXT_VERSION,  color: 'bg-black text-white dark:bg-white dark:text-black' },
-                    { name: '@supabase/ssr',      version: SSR_VERSION,   color: 'bg-green-600 text-white' },
-                    { name: 'React',             version: '18.3.0',      color: 'bg-cyan-500 text-white' },
-                    { name: 'qrcode',            version: '1.5.3',       color: 'bg-purple-600 text-white' },
-                    { name: 'Tailwind CSS',      version: '3.4.x',       color: 'bg-teal-500 text-white' },
-                  ].map(dep => (
-                    <div key={dep.name}
-                         className="flex items-center justify-between px-3 py-2
-                                    bg-gray-50 dark:bg-gray-800 rounded-xl">
-                      <span className="text-xs text-gray-700 dark:text-gray-300 font-mono">{dep.name}</span>
-                      <span className={`text-xs font-mono px-2 py-0.5 rounded-full ${dep.color}`}>
-                        v{dep.version}
-                      </span>
-                    </div>
-                  ))}
                 </div>
 
                 <div className="text-center pt-3">

@@ -94,7 +94,6 @@ export default function QrGenerator({ onGenerated }: { onGenerated?: () => void 
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'phone', label: 'เบอร์โทร' },
-    { id: 'national_id', label: 'บัตรประชาชน' },
     { id: 'bank_account', label: 'เลขบัญชี' },
   ]
 
@@ -191,21 +190,6 @@ export default function QrGenerator({ onGenerated }: { onGenerated?: () => void 
               className="w-full pl-8 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-gray-500"
             />
           </div>
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {QUICK_AMOUNTS.map(n => (
-              <button
-                key={n}
-                onClick={() => setAmount(String(n))}
-                className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
-                  amount === String(n)
-                    ? 'bg-blue-50 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300'
-                    : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-              >
-                ฿{n.toLocaleString()}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Recipient Name */}
@@ -231,18 +215,27 @@ export default function QrGenerator({ onGenerated }: { onGenerated?: () => void 
         <button
           onClick={handleGenerate}
           disabled={loading}
-          className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-xl transition-colors duration-150 flex items-center justify-center gap-2"
+          className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 
+                     dark:from-blue-500 dark:to-indigo-600 dark:hover:from-blue-600 dark:hover:to-indigo-700
+                     disabled:from-blue-400 disabled:to-indigo-400 dark:disabled:from-gray-700 dark:disabled:to-gray-800
+                     text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 dark:shadow-blue-900/40
+                     transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2.5"
         >
           {loading ? (
             <>
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
               </svg>
-              กำลังสร้าง...
+              กำลังสร้าง QR Code...
             </>
           ) : (
-            'สร้าง QR Code'
+            <>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+              </svg>
+              สร้าง QR Code อัตโนมัติ
+            </>
           )}
         </button>
       </div>
@@ -257,7 +250,7 @@ export default function QrGenerator({ onGenerated }: { onGenerated?: () => void 
                   d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
               </svg>
             </div>
-            <p className="text-sm">กรอกข้อมูลแล้วกด "สร้าง QR Code"</p>
+            <p className="text-sm">กรอกข้อมูลแล้วกด "สร้าง QR Code อัตโนมัติ"</p>
           </div>
         ) : (
           <div className="text-center space-y-4">
