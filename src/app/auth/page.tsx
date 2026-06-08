@@ -16,7 +16,7 @@ function getStrength(pw: string): { score: number; label: string; color: string 
   if (/[^A-Za-z0-9]/.test(pw)) score++
   const map = [
     { label: 'อ่อนมาก', color: 'bg-red-400' },
-    { label: 'อ่อน',    color: 'bg-orange-400' },
+    { label: 'อ่อน', color: 'bg-orange-400' },
     { label: 'ปานกลาง', color: 'bg-yellow-400' },
     { label: 'แข็งแรง', color: 'bg-green-400' },
     { label: 'แข็งแรงมาก', color: 'bg-green-600' },
@@ -51,17 +51,17 @@ function AuthForm() {
 
   const searchParams = useSearchParams()
 
-  const [tab, setTab]               = useState<Tab>('login')
-  const [email, setEmail]           = useState('')
-  const [password, setPassword]     = useState('')
-  const [confirm, setConfirm]       = useState('')
-  const [showPw, setShowPw]         = useState(false)
-  const [showCf, setShowCf]         = useState(false)
-  const [agreed, setAgreed]         = useState(false)
-  const [loading, setLoading]       = useState(false)
-  const [socialLoading, setSocial]  = useState<'google' | 'line' | null>(null)
-  const [error, setError]           = useState<string | null>(null)
-  const [successMsg, setSuccess]    = useState<string | null>(null)
+  const [tab, setTab] = useState<Tab>('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [showCf, setShowCf] = useState(false)
+  const [agreed, setAgreed] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [socialLoading, setSocial] = useState<'google' | 'line' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [successMsg, setSuccess] = useState<string | null>(null)
 
   // อ่าน error จาก URL
   useEffect(() => {
@@ -73,7 +73,7 @@ function AuthForm() {
         setError(urlError)
       }
     }
-    
+
     // ตรวจสอบ error จาก URL Hash (Supabase มักจะส่ง error กลับมาทาง hash ถ้า provider ยังไม่เปิดใช้งาน)
     if (typeof window !== 'undefined' && window.location.hash) {
       const hashParams = new URLSearchParams(window.location.hash.substring(1))
@@ -88,20 +88,19 @@ function AuthForm() {
   const reset = () => { setError(null); setSuccess(null) }
 
   // ── Validation ──────────────────────────────────────────────────
-  const emailValid   = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-  const pwStrength   = getStrength(password)
-  const pwLong       = password.length >= 6
-  const cfMatch      = confirm === password && confirm.length > 0
-  const canRegister  = emailValid && pwLong && cfMatch && agreed
-  const canLogin     = emailValid && password.length >= 1
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  const pwStrength = getStrength(password)
+  const pwLong = password.length >= 6
+  const cfMatch = confirm === password && confirm.length > 0
+  const canRegister = emailValid && pwLong && cfMatch && agreed
+  const canLogin = emailValid && password.length >= 1
 
   const fieldClass = (valid: boolean | null, dirty: boolean) =>
     `w-full px-3.5 py-2.5 bg-white dark:bg-gray-900 border rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-300 dark:placeholder-gray-600
-     focus:outline-none focus:ring-2 transition-all pr-10 ${
-       !dirty ? 'border-gray-200 dark:border-gray-700 focus:ring-blue-500/20 focus:border-blue-500'
-       : valid  ? 'border-green-400 focus:ring-green-500/20 focus:border-green-400'
-               : 'border-red-300 dark:border-red-500/50 focus:ring-red-500/20  focus:border-red-400'
-     }`
+     focus:outline-none focus:ring-2 transition-all pr-10 ${!dirty ? 'border-gray-200 dark:border-gray-700 focus:ring-blue-500/20 focus:border-blue-500'
+      : valid ? 'border-green-400 focus:ring-green-500/20 focus:border-green-400'
+        : 'border-red-300 dark:border-red-500/50 focus:ring-red-500/20  focus:border-red-400'
+    }`
 
   // ── Handlers ────────────────────────────────────────────────────
   const handleLogin = useCallback(async (e: React.FormEvent) => {
@@ -160,9 +159,8 @@ function AuthForm() {
           <div className="flex border-b border-gray-100 dark:border-gray-800">
             {(['login', 'register'] as const).map(t => (
               <button key={t} id={`tab-${t}`} onClick={() => switchTab(t)}
-                className={`flex-1 py-3.5 text-sm font-medium transition-colors ${
-                  tab === t ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                }`}>
+                className={`flex-1 py-3.5 text-sm font-medium transition-colors ${tab === t ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                  }`}>
                 {t === 'login' ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก'}
               </button>
             ))}
@@ -196,11 +194,11 @@ function AuthForm() {
                 {socialLoading === 'google'
                   ? <span className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
                   : <svg className="w-4 h-4" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                    </svg>
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                  </svg>
                 }
                 Google
               </button>
@@ -211,8 +209,8 @@ function AuthForm() {
                 {socialLoading === 'line'
                   ? <span className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
                   : <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#06C755">
-                      <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.105.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
-                    </svg>
+                    <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.105.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
+                  </svg>
                 }
                 LINE
               </button>
@@ -243,8 +241,8 @@ function AuthForm() {
                   {email.length > 0 && (
                     <span className="absolute right-3 top-1/2 -translate-y-1/2">
                       {emailValid
-                        ? <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
-                        : <svg className="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+                        ? <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                        : <svg className="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                       }
                     </span>
                   )}
@@ -275,10 +273,9 @@ function AuthForm() {
                 {tab === 'register' && password.length > 0 && (
                   <div className="mt-2 space-y-1">
                     <div className="flex gap-1">
-                      {[0,1,2,3].map(i => (
-                        <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${
-                          i < pwStrength.score ? pwStrength.color : 'bg-gray-100'
-                        }`} />
+                      {[0, 1, 2, 3].map(i => (
+                        <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i < pwStrength.score ? pwStrength.color : 'bg-gray-100'
+                          }`} />
                       ))}
                     </div>
                     <p className="text-xs text-gray-400">
@@ -317,11 +314,10 @@ function AuthForm() {
                   <div className="relative flex-shrink-0 mt-0.5">
                     <input id="terms" type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)}
                       className="sr-only peer" />
-                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                      agreed ? 'bg-blue-600 border-blue-600' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'
-                    }`}>
+                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${agreed ? 'bg-blue-600 border-blue-600' : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'
+                      }`}>
                       {agreed && <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 12 12">
-                        <path d="M10 3L5 8.5 2 5.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                        <path d="M10 3L5 8.5 2 5.5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                       </svg>}
                     </div>
                   </div>
