@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react'
 import QRCode from 'qrcode'
 import type { GenerateRequest, GenerateResponse } from '@/app/api/generate/route'
+import DashboardStats from './DashboardStats'
 
 const BANKS = [
   { code: '014', name: 'KTB - กรุงไทย' },
@@ -293,18 +294,10 @@ export default function QrGenerator({
         </button>
       </div>
 
-      {/* QR Display Panel */}
-      <div className="flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-6 min-h-[360px] transition-colors">
+      {/* QR Display Panel / Dashboard */}
+      <div className={`flex flex-col bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-6 min-h-[360px] transition-colors ${!qrDataUrl ? '' : 'items-center justify-center'}`}>
         {!qrDataUrl ? (
-          <div className="text-center text-gray-400 dark:text-gray-500">
-            <div className="w-32 h-32 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <svg className="w-10 h-10 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                  d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-              </svg>
-            </div>
-            <p className="text-sm">กรอกข้อมูลแล้วกด "สร้าง QR Code อัตโนมัติ"</p>
-          </div>
+          <DashboardStats />
         ) : (
           <div className="text-center space-y-4">
             <img src={qrDataUrl} alt="QR Code" className="w-52 h-52 mx-auto rounded-xl shadow-sm" />
