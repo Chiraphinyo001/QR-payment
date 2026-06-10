@@ -150,17 +150,33 @@ export default function PaymentHistory({ refreshKey }: { refreshKey?: number }) 
   }, [page, highlightNew, addToast])
 
   // ── Delete ───────────────────────────────────────────────────
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string>>(new Set())
+
   const handleDelete = async (id: string) => {
-    if (!confirm('ลบ QR Code นี้?')) return
-    // Optimistic UI
+    if (!pendingDeleteIds.has(id)) {
+      // คลิกแรก: แสดงสถานะ "ยืนยัน?"
+      setPendingDeleteIds(prev => new Set([...prev, id]))
+      setTimeout(() => {
+        setPendingDeleteIds(prev => { const s = new Set(prev); s.delete(id); return s })
+      }, 3000) // reset หลัง 3 วินาทีถ้าไม่ยืนยัน
+      return
+    }
+    // คลิกสอง: ลบจริง
+    setPendingDeleteIds(prev => { const s = new Set(prev); s.delete(id); return s })
     setDeletingIds(prev => new Set([...prev, id]))
-    await fetch(`/api/payments?id=${id}`, { method: 'DELETE' })
-    setTimeout(() => {
-      setPayments(prev => prev.filter(p => p.id !== id))
-      setTotal(prev => Math.max(0, prev - 1))
+    try {
+      const res = await fetch(`/api/payments?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Delete failed')
+      setTimeout(() => {
+        setPayments(prev => prev.filter(p => p.id !== id))
+        setTotal(prev => Math.max(0, prev - 1))
+        setDeletingIds(prev => { const s = new Set(prev); s.delete(id); return s })
+        addToast('ลบ QR Code แล้ว', 'info')
+      }, 300)
+    } catch (error) {
       setDeletingIds(prev => { const s = new Set(prev); s.delete(id); return s })
-      addToast('ลบ QR Code แล้ว', 'info')
-    }, 300)
+      addToast('เกิดข้อผิดพลาดในการลบ', 'info')
+    }
   }
 
   // ── Download ─────────────────────────────────────────────────
@@ -189,7 +205,7 @@ export default function PaymentHistory({ refreshKey }: { refreshKey?: number }) 
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติ QR Code</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติ การสร้าง QR Code แบบอัตโนมัติ</h2>
             <LiveBadge connected={isLive} />
           </div>
           <div className="flex items-center gap-3">
@@ -240,10 +256,32 @@ export default function PaymentHistory({ refreshKey }: { refreshKey?: number }) 
                   <span className="absolute -ml-1 w-1.5 h-1.5 bg-green-500 rounded-full animate-ping" />
                 )}
 
-                {/* Badge */}
-                <span className="shrink-0 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium rounded-full">
-                  {proxyTypeLabel[p.proxy_type]}
-                </span>
+                {/* Icon Badge by proxy type */}
+                {p.proxy_type === 'phone' ? (
+                  <span className="shrink-0 flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-medium rounded-lg">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    เบอร์โทร
+                  </span>
+                ) : p.proxy_type === 'bank_account' ? (
+                  <span className="shrink-0 flex items-center gap-1 px-2 py-1 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-xs font-medium rounded-lg">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                    </svg>
+                    บัญชีธนาคาร
+                  </span>
+                ) : (
+                  <span className="shrink-0 flex items-center gap-1 px-2 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-medium rounded-lg">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                    </svg>
+                    บัตรปชช.
+                  </span>
+                )}
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
@@ -288,13 +326,26 @@ export default function PaymentHistory({ refreshKey }: { refreshKey?: number }) 
                   </button>
                   <button
                     onClick={() => handleDelete(p.id)}
-                    title="ลบ"
+                    title={pendingDeleteIds.has(p.id) ? 'คลิกอีกครั้งเพื่อยืนยันลบ' : 'ลบ'}
                     disabled={deletingIds.has(p.id)}
-                    className="p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors disabled:opacity-50"
+                    className={`flex items-center gap-1 rounded-lg transition-all duration-200 disabled:opacity-50 ${
+                      pendingDeleteIds.has(p.id)
+                        ? 'px-2 py-1 bg-red-500 text-white text-xs font-medium hover:bg-red-600'
+                        : 'p-1.5 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30'
+                    }`}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
+                    {pendingDeleteIds.has(p.id) ? (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        ยืนยัน?
+                      </>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    )}
                   </button>
                 </div>
               </div>

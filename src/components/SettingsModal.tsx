@@ -271,11 +271,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
                   </div>
                 </div>
 
-                <div className="text-center pt-3">
-                  <p className="text-xs text-gray-400 dark:text-gray-600">
-                    Built with ❤️ · {new Date().getFullYear()}
-                  </p>
-                </div>
+
               </div>
             )}
           </div>
