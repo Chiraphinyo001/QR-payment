@@ -177,9 +177,19 @@ function DashboardModal({ item, onClose, onDelete }: { item: QrPayment; onClose:
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2.5 text-gray-500 dark:text-gray-400">
                   <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800/50 flex items-center justify-center">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
+                    {item.proxy_type === 'bank_account' ? (
+                      <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                      </svg>
+                    ) : item.proxy_type === 'national_id' ? (
+                      <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                    )}
                   </div>
                   <span className="text-sm">{proxyLabel(item.proxy_type)}</span>
                 </div>
@@ -196,20 +206,6 @@ function DashboardModal({ item, onClose, onDelete }: { item: QrPayment; onClose:
                   <span className="text-sm">จำนวนเงินต่อครั้ง</span>
                 </div>
                 <span className="text-sm font-bold text-gray-900 dark:text-white font-mono">{item.amount ? `฿${Number(item.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}` : 'ทุกจำนวน'}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2.5 text-gray-500 dark:text-gray-400">
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-800/50 flex items-center justify-center">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <span className="text-sm">ความถี่</span>
-                </div>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {item.schedule_type === 'daily' ? 'ทุกวัน' : item.schedule_type === 'weekly' ? 'ทุกสัปดาห์' : item.schedule_type === 'monthly' ? 'ทุกเดือน' : 'เปิดใช้งานตลอด'}
-                  {item.schedule_time ? ` เวลา ${item.schedule_time} น.` : ''}
-                </span>
               </div>
             </div>
           </section>
@@ -355,26 +351,6 @@ function DashboardModal({ item, onClose, onDelete }: { item: QrPayment; onClose:
                 </div>
                 <span className="text-[10px] bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 px-2.5 py-1 rounded-full font-medium">API / Webhook</span>
               </button>
-              <button className="w-full flex items-center justify-between p-4 bg-white dark:bg-[#1A1F2C] border border-gray-200 dark:border-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all rounded-2xl group shadow-sm dark:shadow-none">
-                <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                  <svg className="w-5 h-5 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  <span className="text-sm font-medium">แก้ไขรายละเอียด</span>
-                </div>
-                <span className="text-[10px] bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2.5 py-1 rounded-full font-medium">เบอร์ / จำนวน / เวลา</span>
-              </button>
-
-              <button className="w-full flex items-center justify-between p-4 bg-white dark:bg-[#1A1F2C] border border-gray-200 dark:border-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all rounded-2xl group shadow-sm dark:shadow-none">
-                <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                  <svg className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <span className="text-sm font-medium">ตั้งเวลาชำระ</span>
-                </div>
-                <span className="text-[10px] bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-2.5 py-1 rounded-full font-medium">รายวัน / สัปดาห์ / เดือน</span>
-              </button>
-
               <button className="w-full flex items-center justify-between p-4 bg-white dark:bg-[#1A1F2C] border border-gray-200 dark:border-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all rounded-2xl group shadow-sm dark:shadow-none">
                 <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
                   <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -686,8 +662,8 @@ export default function ActiveQrPanel({ refreshKey }: { refreshKey?: number }) {
           </div>
           {/* Active count badge */}
           <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${activeCount > 0
-              ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-700'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500'
+            ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-200 dark:ring-indigo-700'
+            : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500'
             }`}>
             {activeCount > 0 && <SpinnerIcon size={10} />}
             <span>{activeCount}</span>
@@ -717,10 +693,10 @@ export default function ActiveQrPanel({ refreshKey }: { refreshKey?: number }) {
                 <div
                   key={item.id}
                   className={`relative rounded-xl border px-3 py-2.5 transition-all duration-500 ${isStopped
-                      ? 'border-red-300 dark:border-red-700/60 bg-red-50 dark:bg-red-900/20'
-                      : isNew
-                        ? 'border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 shadow-md shadow-indigo-100 dark:shadow-indigo-900/40'
-                        : 'bg-white dark:bg-gray-800/60 border-gray-100 dark:border-gray-700/60 hover:border-gray-200 dark:hover:border-gray-600'
+                    ? 'border-red-300 dark:border-red-700/60 bg-red-50 dark:bg-red-900/20'
+                    : isNew
+                      ? 'border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 shadow-md shadow-indigo-100 dark:shadow-indigo-900/40'
+                      : 'bg-white dark:bg-gray-800/60 border-gray-100 dark:border-gray-700/60 hover:border-gray-200 dark:hover:border-gray-600'
                     }`}
                 >
                   {/* Top accent bar */}
