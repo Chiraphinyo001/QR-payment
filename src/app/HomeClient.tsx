@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import QrGenerator from '@/components/QrGenerator'
 import PaymentHistory from '@/components/PaymentHistory'
 import SettingsModal from '@/components/SettingsModal'
+import ActiveQrPanel from '@/components/ActiveQrPanel'
 
 interface HomeClientProps {
   userEmail: string | null
@@ -73,6 +74,7 @@ export default function HomeClient({ userEmail, avatarUrl }: HomeClientProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const activePanelRef = useRef<HTMLDivElement>(null)
 
   // Apply saved theme on mount
   useEffect(() => {
@@ -225,19 +227,30 @@ export default function HomeClient({ userEmail, avatarUrl }: HomeClientProps) {
       </header>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Desktop */}
-        <div className="hidden lg:block">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 mb-6 transition-colors">
-            <QrGenerator onGenerated={() => setRefreshKey(k => k + 1)} />
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Desktop: two-column layout */}
+        <div className="hidden lg:grid lg:grid-cols-[1fr_280px] xl:grid-cols-[1fr_300px] gap-6 items-start">
+
+          {/* Left: QR Generator + History */}
+          <div className="space-y-6 min-w-0">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 transition-colors">
+              <QrGenerator onGenerated={() => setRefreshKey(k => k + 1)} />
+            </div>
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 transition-colors">
+              <PaymentHistory refreshKey={refreshKey} />
+            </div>
           </div>
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6 transition-colors">
-            <PaymentHistory refreshKey={refreshKey} />
+
+          {/* Right: Active QR Panel (sticky) */}
+          <div className="sticky top-[72px] self-start" ref={activePanelRef}>
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-4 transition-all duration-300 max-h-[calc(100vh-96px)] overflow-hidden flex flex-col">
+              <ActiveQrPanel refreshKey={refreshKey} />
+            </div>
           </div>
         </div>
 
         {/* Mobile */}
-        <div className="lg:hidden">
+        <div className="lg:hidden space-y-6">
           {activeTab === 'generate' ? (
             <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 transition-colors">
               <QrGenerator onGenerated={() => { setRefreshKey(k => k + 1); setActiveTab('history') }} />
@@ -247,6 +260,10 @@ export default function HomeClient({ userEmail, avatarUrl }: HomeClientProps) {
               <PaymentHistory refreshKey={refreshKey} />
             </div>
           )}
+          {/* Mobile: Active panel below */}
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-4 transition-colors">
+            <ActiveQrPanel refreshKey={refreshKey} />
+          </div>
         </div>
       </div>
     </main>

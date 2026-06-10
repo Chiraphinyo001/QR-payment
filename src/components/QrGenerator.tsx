@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import QRCode from 'qrcode'
 import type { GenerateRequest, GenerateResponse } from '@/app/api/generate/route'
 
@@ -17,23 +17,25 @@ const BANKS = [
   { code: '069', name: 'KKP - เกียรตินาคินภัทร' },
 ]
 
-const QUICK_AMOUNTS = [20, 50, 100, 200, 500, 1000, 2000, 5000]
-
 type Tab = 'phone' | 'national_id' | 'bank_account'
 
-export default function QrGenerator({ onGenerated }: { onGenerated?: () => void }) {
+export default function QrGenerator({
+  onGenerated,
+}: {
+  onGenerated?: () => void
+}) {
   const [tab, setTab] = useState<Tab>('phone')
   const [phone, setPhone] = useState('')
   const [nationalId, setNationalId] = useState('')
   const [bankCode, setBankCode] = useState('')
   const [accountNo, setAccountNo] = useState('')
   const [amount, setAmount] = useState('')
+  const [anyAmount, setAnyAmount] = useState(false)   // ✅ checkbox "รับทุกจำนวน"
   const [recipientName, setRecipientName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [result, setResult] = useState<GenerateResponse | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const handleGenerate = useCallback(async () => {
     setError('')
@@ -44,7 +46,7 @@ export default function QrGenerator({ onGenerated }: { onGenerated?: () => void 
       proxyValue: tab === 'phone' ? phone : tab === 'national_id' ? nationalId : accountNo,
       bankCode: tab === 'bank_account' ? bankCode : undefined,
       bankName: tab === 'bank_account' ? BANKS.find(b => b.code === bankCode)?.name : undefined,
-      amount: amount ? parseFloat(amount) : undefined,
+      amount: anyAmount ? undefined : (amount ? parseFloat(amount) : undefined),
       recipientName: recipientName || undefined,
     }
 
@@ -57,7 +59,6 @@ export default function QrGenerator({ onGenerated }: { onGenerated?: () => void 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'เกิดข้อผิดพลาด')
 
-      // Generate QR image from payload
       const dataUrl = await QRCode.toDataURL(data.qrPayload, {
         width: 300,
         margin: 2,
@@ -67,12 +68,19 @@ export default function QrGenerator({ onGenerated }: { onGenerated?: () => void 
       setQrDataUrl(dataUrl)
       setResult(data)
       onGenerated?.()
+
+      // ── ล้างช่องกรอกข้อมูลหลัง generate สำเร็จ ─────────────────
+      setPhone('')
+      setNationalId('')
+      setBankCode('')
+      setAccountNo('')
+      setRecipientName('')
     } catch (e: any) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [tab, phone, nationalId, bankCode, accountNo, amount, recipientName, onGenerated])
+  }, [tab, phone, nationalId, bankCode, accountNo, amount, anyAmount, recipientName, onGenerated])
 
   const handleDownload = () => {
     if (!qrDataUrl) return
@@ -173,22 +181,67 @@ export default function QrGenerator({ onGenerated }: { onGenerated?: () => void 
           </div>
         )}
 
-        {/* Amount */}
+        {/* Amount + checkbox */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-            จำนวนเงิน <span className="text-gray-400 dark:text-gray-500 font-normal">(ไม่ระบุ = รับทุกจำนวน)</span>
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              จำนวนเงิน
+            </label>
+            {/* ✅ Checkbox "รับทุกจำนวน (อัตโนมัติ)" */}
+            <label className="flex items-center gap-1.5 cursor-pointer select-none group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={anyAmount}
+                  onChange={e => {
+                    setAnyAmount(e.target.checked)
+                    if (e.target.checked) setAmount('')
+                  }}
+                  className="sr-only peer"
+                />
+                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${
+                  anyAmount
+                    ? 'bg-indigo-600 border-indigo-600'
+                    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 group-hover:border-indigo-400'
+                }`}>
+                  {anyAmount && (
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 12 12">
+                      <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </div>
+              </div>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                ระบบอัตโนมัติ <span className="text-indigo-500 font-medium">✓</span>
+              </span>
+            </label>
+          </div>
+
           <div className="relative">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 font-medium">฿</span>
+            <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-medium transition-colors ${
+              anyAmount ? 'text-gray-300 dark:text-gray-600' : 'text-gray-500 dark:text-gray-400'
+            }`}>฿</span>
             <input
               type="number"
               value={amount}
               onChange={e => setAmount(e.target.value)}
-              placeholder="0.00"
+              disabled={anyAmount}
+              placeholder={anyAmount ? 'ระบบอัตโนมัติ' : '0.00'}
               min="0"
               step="0.01"
-              className="w-full pl-8 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 dark:placeholder-gray-500"
+              className={`w-full pl-8 pr-4 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all ${
+                anyAmount
+                  ? 'bg-gray-50 dark:bg-gray-800/40 border-gray-100 dark:border-gray-700/50 text-gray-400 dark:text-gray-600 cursor-not-allowed placeholder-gray-300 dark:placeholder-gray-700'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500'
+              }`}
             />
+            {anyAmount && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <span className="text-xs text-indigo-500 dark:text-indigo-400 font-medium ml-6">
+                  ✓ ระบบอัตโนมัติ
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -215,7 +268,7 @@ export default function QrGenerator({ onGenerated }: { onGenerated?: () => void 
         <button
           onClick={handleGenerate}
           disabled={loading}
-          className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 
+          className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700
                      dark:from-blue-500 dark:to-indigo-600 dark:hover:from-blue-600 dark:hover:to-indigo-700
                      disabled:from-blue-400 disabled:to-indigo-400 dark:disabled:from-gray-700 dark:disabled:to-gray-800
                      text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 dark:shadow-blue-900/40
@@ -258,10 +311,13 @@ export default function QrGenerator({ onGenerated }: { onGenerated?: () => void 
             {recipientName && (
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{recipientName}</p>
             )}
-            {amount && parseFloat(amount) > 0 && (
+            {!anyAmount && amount && parseFloat(amount) > 0 && (
               <p className="text-2xl font-bold text-gray-900 dark:text-white font-mono">
                 ฿{parseFloat(amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
               </p>
+            )}
+            {anyAmount && (
+              <p className="text-sm text-indigo-500 dark:text-indigo-400 font-medium">✓ ระบบอัตโนมัติ</p>
             )}
             <p className="text-xs text-gray-400 dark:text-gray-500">ID: {result?.id?.slice(0, 8)}…</p>
             <button

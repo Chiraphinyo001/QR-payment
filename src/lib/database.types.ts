@@ -19,6 +19,11 @@ export interface Database {
           created_at: string
           updated_at: string
           user_id: string | null
+          notify_success: boolean
+          notify_fail: boolean
+          is_paused: boolean
+          schedule_type: string | null
+          schedule_time: string | null
         }
         Insert: {
           id?: string
@@ -33,6 +38,11 @@ export interface Database {
           created_at?: string
           updated_at?: string
           user_id?: string | null
+          notify_success?: boolean
+          notify_fail?: boolean
+          is_paused?: boolean
+          schedule_type?: string | null
+          schedule_time?: string | null
         }
         Update: Partial<Database['public']['Tables']['qr_payments']['Insert']>
       }
@@ -53,6 +63,25 @@ export interface Database {
         }
         Update: never
       }
+      qr_transactions: {
+        Row: {
+          id: string
+          payment_id: string | null
+          amount: number
+          status: 'success' | 'failed' | 'pending'
+          error_message: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          payment_id?: string | null
+          amount: number
+          status: 'success' | 'failed' | 'pending'
+          error_message?: string | null
+          created_at?: string
+        }
+        Update: never
+      }
     }
     Functions: {
       increment_scan_count: { Args: { payment_id: string }; Returns: void }
@@ -63,3 +92,4 @@ export interface Database {
 // Convenience type
 export type QrPayment = Database['public']['Tables']['qr_payments']['Row']
 export type QrPaymentInsert = Database['public']['Tables']['qr_payments']['Insert']
+export type QrTransaction = Database['public']['Tables']['qr_transactions']['Row']

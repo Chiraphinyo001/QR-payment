@@ -51,14 +51,50 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
-  // ลบเฉพาะ QR ของ user นี้ (double-check ด้วย user_id)
+  // ลบด้วย id เพียงอย่างเดียว (admin client bypass RLS)
+  // รองรับทั้ง record ที่มี user_id และ record เก่าที่ user_id = NULL
   const { error } = await supabaseAdmin
     .from('qr_payments')
     .delete()
     .eq('id', id)
-    .eq('user_id', userId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ success: true })
+}
+
+export async function PATCH(req: NextRequest) {
+  const supabaseServer = createSupabaseServerClient()
+  const { data: { session } } = await supabaseServer.auth.getSession()
+
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { searchParams } = new URL(req.url)
+  const id = searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
+
+  try {
+    const body = await req.json()
+    
+    // Only allow updating certain fields
+    const updateData: any = {}
+    if (typeof body.notify_success === 'boolean') updateData.notify_success = body.notify_success
+    if (typeof body.notify_fail === 'boolean') updateData.notify_fail = body.notify_fail
+    if (typeof body.is_paused === 'boolean') updateData.is_paused = body.is_paused
+    if (body.schedule_type !== undefined) updateData.schedule_type = body.schedule_type
+    if (body.schedule_time !== undefined) updateData.schedule_time = body.schedule_time
+
+    const { error } = await supabaseAdmin
+      .from('qr_payments')
+      .update(updateData)
+      .eq('id', id)
+
+    if (error) throw error
+
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
 }
