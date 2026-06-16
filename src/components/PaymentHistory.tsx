@@ -191,6 +191,134 @@ export default function PaymentHistory({ refreshKey }: { refreshKey?: number }) 
     a.click()
   }
 
+  // ── Export CSV (ทุกรายการ + สถานะสลิป) ──────────────────────────
+  const [exporting, setExporting] = useState(false)
+
+  const handleExportCSV = async () => {
+    setExporting(true)
+    try {
+      // ดึง qr_payments ทั้งหมดของ user นี้
+      const { data: allPayments, error: pErr } = await supabase
+        .from('qr_payments')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (pErr) throw pErr
+
+      // ดึง qr_transactions ทั้งหมดที่เกี่ยวข้อง
+      const paymentIds = (allPayments ?? []).map((p: any) => p.id)
+      let allTxs: any[] = []
+      if (paymentIds.length > 0) {
+        const { data: txData } = await supabase
+          .from('qr_transactions' as any)
+          .select('*')
+          .in('payment_id', paymentIds)
+          .order('created_at', { ascending: false })
+        allTxs = txData ?? []
+      }
+
+      // Map transactions per payment
+      const txByPayment: Record<string, any[]> = {}
+      allTxs.forEach((tx: any) => {
+        if (!txByPayment[tx.payment_id]) txByPayment[tx.payment_id] = []
+        txByPayment[tx.payment_id].push(tx)
+      })
+
+      // Build CSV rows
+      const headers = [
+        'ลำดับ',
+        'Payment ID',
+        'ประเภท',
+        'เลขบัญชี/เบอร์',
+        'ธนาคาร',
+        'ยอดเงิน QR (บาท)',
+        'วันที่สร้าง QR',
+        'Transaction ID',
+        'ยอดโอน (บาท)',
+        'สถานะการโอน',
+        'ผลตรวจสลิป',
+        'วันที่โอน',
+        'Slip URL',
+      ]
+
+      const rows: string[][] = []
+      let seq = 1
+
+      for (const p of (allPayments ?? []) as any[]) {
+        const txs = txByPayment[p.id] ?? []
+        const proxyLabel =
+          p.proxy_type === 'phone' ? 'เบอร์โทร' :
+          p.proxy_type === 'bank_account' ? 'บัญชีธนาคาร' : 'บัตรปชช.'
+
+        if (txs.length === 0) {
+          // Payment ที่ยังไม่มี transaction
+          rows.push([
+            String(seq++),
+            p.id,
+            proxyLabel,
+            p.proxy_value,
+            p.bank_name ?? '-',
+            p.amount != null ? Number(p.amount).toFixed(2) : 'อัตโนมัติ',
+            new Date(p.created_at).toLocaleString('th-TH'),
+            '-', '-', '-', '-', '-', '-',
+          ])
+        } else {
+          for (const tx of txs) {
+            const slipStatus =
+              tx.is_verified_slip === true ? '✓ สลิปจริง' :
+              tx.is_verified_slip === false ? '✗ สลิปปลอม' : 'รอตรวจสอบ'
+            const txStatus =
+              tx.status === 'success' ? 'สำเร็จ' :
+              tx.status === 'failed' ? 'ล้มเหลว' : 'รอดำเนินการ'
+
+            rows.push([
+              String(seq++),
+              p.id,
+              proxyLabel,
+              p.proxy_value,
+              p.bank_name ?? '-',
+              p.amount != null ? Number(p.amount).toFixed(2) : 'อัตโนมัติ',
+              new Date(p.created_at).toLocaleString('th-TH'),
+              tx.id,
+              tx.amount != null ? Number(tx.amount).toFixed(2) : '-',
+              txStatus,
+              slipStatus,
+              new Date(tx.created_at).toLocaleString('th-TH'),
+              tx.slip_url ?? '-',
+            ])
+          }
+        }
+      }
+
+      // Build CSV string with BOM for Thai encoding
+      const BOM = '\uFEFF'
+      const escape = (s: string) =>
+        `"${String(s).replace(/"/g, '""')}"`
+      const csvContent =
+        BOM +
+        [headers, ...rows]
+          .map(row => row.map(escape).join(','))
+          .join('\r\n')
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const now = new Date()
+      const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
+      a.href = url
+      a.download = `payment-history-${dateStr}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+
+      addToast(`ส่งออก CSV สำเร็จ (${rows.length} รายการ)`, 'success')
+    } catch (err) {
+      console.error('Export error:', err)
+      addToast('เกิดข้อผิดพลาดในการส่งออก', 'info')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const proxyTypeLabel: Record<string, string> = {
     phone: 'เบอร์โทร', national_id: 'บัตรปชช.', bank_account: 'บัญชีธนาคาร',
   }
@@ -205,11 +333,38 @@ export default function PaymentHistory({ refreshKey }: { refreshKey?: number }) 
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติ การสร้าง QR Code แบบอัตโนมัติ</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติ QR Code</h2>
             <LiveBadge connected={isLive} />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <span className="text-sm text-gray-500 dark:text-gray-400">{total} รายการ</span>
+
+            {/* Export CSV */}
+            <button
+              onClick={handleExportCSV}
+              disabled={exporting}
+              title="ส่งออก CSV (พร้อมผลตรวจสลิป)"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold
+                         bg-emerald-50 dark:bg-emerald-500/10
+                         text-emerald-700 dark:text-emerald-400
+                         hover:bg-emerald-100 dark:hover:bg-emerald-500/20
+                         border border-emerald-200 dark:border-emerald-500/20
+                         rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {exporting ? (
+                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              )}
+              {exporting ? 'กำลังส่งออก...' : 'ส่งออก CSV'}
+            </button>
+
             <button
               onClick={fetchPayments}
               title="รีเฟรช"
