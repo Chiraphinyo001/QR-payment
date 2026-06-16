@@ -44,16 +44,18 @@ export default function DashboardStats() {
   const [accountTypes, setAccountTypes] = useState({ phone: 0, bank: 0, id: 0 })
   const [loading, setLoading] = useState(true)
   const [isFullScreen, setIsFullScreen] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
 
   useEffect(() => {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    
+    let currentUserId: string | null = null
+
     const fetchData = async () => {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
-      
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!currentUserId) return
 
       const now = new Date()
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -66,7 +68,7 @@ export default function DashboardStats() {
       const { data: payments } = await supabase
         .from('qr_payments')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', currentUserId)
 
       if (payments) {
         const paymentIds = payments.map(p => p.id)
@@ -130,7 +132,30 @@ export default function DashboardStats() {
       setLoading(false)
     }
 
-    fetchData()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        currentUserId = user.id
+        fetchData()
+      }
+    })
+
+    const channel = supabase
+      .channel(`dashboard_stats_changes_${Math.random()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'qr_payments' },
+        () => { fetchData() }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'qr_transactions' },
+        () => { fetchData() }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   // Labels
@@ -155,25 +180,42 @@ export default function DashboardStats() {
   }
 
   const content = (
-    <div className="w-full space-y-6 animate-fade-in pb-4">
+    <div className="w-full space-y-4 animate-fade-in pb-4">
       {/* Header with Expand Button */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-gray-900 dark:text-white">ภาพรวมสถิติ</h3>
-        <button 
-          onClick={() => setIsFullScreen(!isFullScreen)} 
-          className="p-2 text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          title={isFullScreen ? "ย่อหน้าต่าง" : "ขยายเต็มจอ"}
-        >
-          {isFullScreen ? (
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          ) : (
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-            </svg>
-          )}
-        </button>
+        <div className="flex items-center gap-1">
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)} 
+            className="p-2 text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            title={isCollapsed ? "แสดงรายละเอียด" : "ย่อส่วน"}
+          >
+            {isCollapsed ? (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              </svg>
+            )}
+          </button>
+          <button 
+            onClick={() => setIsFullScreen(!isFullScreen)} 
+            className="p-2 text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            title={isFullScreen ? "ย่อหน้าต่าง" : "ขยายเต็มจอ"}
+          >
+            {isFullScreen ? (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              </svg>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* 6 Stats Cards */}
@@ -186,9 +228,11 @@ export default function DashboardStats() {
         <StatCard title="ยอดรวมปีนี้" value={stats.amountYear.toLocaleString('th-TH', { minimumFractionDigits: 2 })} unit="บาท" icon="🏆" color="text-purple-600 dark:text-purple-400" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Bar Chart */}
-        <div className="bg-white dark:bg-[#1A1F2C] rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800/60">
+      {(!isCollapsed || isFullScreen) && (
+        <div className="animate-fade-in">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Bar Chart */}
+            <div className="bg-white dark:bg-[#1A1F2C] rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-800/60">
           <h4 className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">จำนวน QR Code 7 วันล่าสุด</h4>
           <div className="h-44">
             <Bar 
@@ -276,6 +320,8 @@ export default function DashboardStats() {
           </div>
         </div>
       </div>
+      </div>
+      )}
     </div>
   )
 

@@ -85,11 +85,7 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ onClose }: SettingsModalProps) {
   const [theme, setTheme] = useState<Theme>('light')
-  const [showKey, setShowKey] = useState(false)
-  const [showUrl, setShowUrl] = useState(false)
-  
   const [isThemeOpen, setIsThemeOpen] = useState(false)
-  const [isApiOpen, setIsApiOpen] = useState(false)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
@@ -175,63 +171,7 @@ export default function SettingsModal({ onClose }: SettingsModalProps) {
             )}
           </div>
 
-          {/* ── API ── */}
-          <div className="border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 transition-colors">
-            <button 
-              onClick={() => setIsApiOpen(v => !v)}
-              className="w-full flex items-center justify-between p-4 bg-gray-50/50 dark:bg-gray-800/20 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-            >
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <span>🔑</span> API
-              </h3>
-              <svg className={`w-4 h-4 text-gray-400 transition-transform ${isApiOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {isApiOpen && (
-              <div className="p-4 pt-2 border-t border-gray-100 dark:border-gray-800 space-y-3 animate-fade-in">
-                <p className="text-xs text-gray-500 dark:text-gray-400">ข้อมูลการเชื่อมต่อสำหรับนักพัฒนา</p>
 
-                {/* Supabase URL */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Supabase URL</label>
-                    <button
-                      onClick={() => setShowUrl(v => !v)}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      {showUrl ? '🙈 ซ่อน' : '👁 แสดง'}
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                    <code className="flex-1 text-xs text-gray-700 dark:text-gray-300 font-mono truncate">
-                      {showUrl ? supabaseUrl : (supabaseUrl ? maskKey(supabaseUrl) : '—')}
-                    </code>
-                    {supabaseUrl && <CopyButton value={supabaseUrl} label="URL" />}
-                  </div>
-                </div>
-
-                {/* Anon Key */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Anon Key (Public)</label>
-                    <button
-                      onClick={() => setShowKey(v => !v)}
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      {showKey ? '🙈 ซ่อน' : '👁 แสดง'}
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                    <code className="flex-1 text-xs text-gray-700 dark:text-gray-300 font-mono truncate">
-                      {showKey ? anonKey : maskKey(anonKey)}
-                    </code>
-                    {anonKey && <CopyButton value={anonKey} label="Key" />}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* ── เวอร์ชัน ── */}
           <div className="border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 transition-colors">

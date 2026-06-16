@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { createBrowserClient } from '@supabase/ssr'
 import QRCode from 'qrcode'
 import type { QrPayment } from '@/lib/database.types'
+import SystemSettings from './SystemSettings'
 
 // ── Spinner ────────────────────────────────────────────────────────
 function SpinnerIcon({ size = 16 }: { size?: number }) {
@@ -61,11 +62,42 @@ function DashboardModal({ item, onClose, onDelete }: { item: QrPayment; onClose:
   const [isPaused, setIsPaused] = useState(item.is_paused ?? false)
   const [transactions, setTransactions] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(true)
+  const [showApiDocs, setShowApiDocs] = useState(false)
+  const [showSlipTest, setShowSlipTest] = useState(false)
+  const [testSlipUrl, setTestSlipUrl] = useState('')
+  const [testSlipFile, setTestSlipFile] = useState<File | null>(null)
+  const [testPreviewUrl, setTestPreviewUrl] = useState('')
+  const [testResult, setTestResult] = useState<any>(null)
+  const [isTesting, setIsTesting] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [advancedFields, setAdvancedFields] = useState<Record<string,any>>({})
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
+
+  // ── Auto-verify: ส่ง slip_url ไปตรวจเฉพาะรายการที่มีสลิปจริง
+  const autoVerify = async (tx: any) => {
+    // ตรวจเฉพาะรายการที่ (1) ยังไม่ได้ตรวจ และ (2) มี slip_url จริงๆ
+    if (!tx || tx.is_verified_slip !== null) return
+    if (!tx.slip_url || tx.slip_url.trim() === '') return // ไม่สร้าง random slip
+    try {
+      const res = await fetch('/api/webhook/verify-slip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaction_id: tx.id, slip_url: tx.slip_url })
+      })
+      const json = await res.json()
+      if (json.success) {
+        setTransactions(prev => prev.map(t =>
+          t.id === tx.id
+            ? { ...t, is_verified_slip: json.is_valid, status: json.is_valid ? 'success' : 'failed', error_message: json.is_valid ? null : 'สลิปปลอมหรือตรวจสอบไม่ผ่าน' }
+            : t
+        ))
+      }
+    } catch (e) { console.error('auto-verify error', e) }
+  }
 
   useEffect(() => {
     // ดึงประวัติรายการล่าสุด
@@ -77,20 +109,35 @@ function DashboardModal({ item, onClose, onDelete }: { item: QrPayment; onClose:
         .eq('payment_id', item.id)
         .order('created_at', { ascending: false })
         .limit(10)
-      setTransactions(data ?? [])
+      const rows = data ?? []
+      setTransactions(rows)
       setLoadingHistory(false)
+      // Auto-verify รายการที่ยังไม่ได้ตรวจ
+      rows.filter(t => t.is_verified_slip === null || t.is_verified_slip === undefined)
+          .forEach(t => autoVerify(t))
     }
 
     fetchTransactions()
 
-    // Realtime subscription สำหรับตาราง transactions
+    // Realtime subscription — ฟัง INSERT + UPDATE
     const channel = supabase
-      .channel(`transactions_${item.id}`)
+      .channel(`transactions_${item.id}_${Math.random()}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'qr_transactions', filter: `payment_id=eq.${item.id}` },
         (payload) => {
-          setTransactions(prev => [payload.new, ...prev].slice(0, 10))
+          const newTx = payload.new as any
+          setTransactions(prev => [newTx, ...prev].slice(0, 10))
+          // Auto-verify ทันทีที่รายการใหม่เข้ามา
+          autoVerify(newTx)
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'qr_transactions', filter: `payment_id=eq.${item.id}` },
+        (payload) => {
+          const updated = payload.new as any
+          setTransactions(prev => prev.map(t => t.id === updated.id ? updated : t))
         }
       )
       .subscribe()
@@ -142,6 +189,37 @@ function DashboardModal({ item, onClose, onDelete }: { item: QrPayment; onClose:
     if (confirm('คุณต้องการลบระบบชำระเงินนี้ใช่หรือไม่?')) {
       onDelete()
     }
+  }
+
+  const handleTestSlip = async () => {
+    if (!testSlipUrl && !testSlipFile) return alert('กรุณาใส่ URL หรือเลือกรูปภาพสลิป')
+    setIsTesting(true)
+    setTestResult(null)
+    try {
+      let slip_url = testSlipUrl
+      if (testSlipFile) {
+        // แปลงไฟล์เป็น base64 data URL แล้วส่งไปเป็น slip_url
+        slip_url = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.readAsDataURL(testSlipFile)
+        })
+      }
+      const res = await fetch('/api/webhook/verify-slip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          payment_id: item.id,
+          slip_url
+        })
+      })
+      const json = await res.json()
+      setTestResult(json)
+    } catch (e) {
+      console.error(e)
+      setTestResult({ error: 'เกิดข้อผิดพลาดในการตรวจสอบ' })
+    }
+    setIsTesting(false)
   }
 
   if (typeof window === 'undefined') return null
@@ -318,17 +396,42 @@ function DashboardModal({ item, onClose, onDelete }: { item: QrPayment; onClose:
                   const statusColor = t.status === 'success' ? 'emerald' : t.status === 'failed' ? 'rose' : 'amber'
                   const statusText = t.status === 'success' ? 'สำเร็จ' : t.status === 'failed' ? (t.error_message || 'ล้มเหลว') : 'รอชำระเงิน'
                   return (
-                    <div key={t.id || i} className="flex justify-between items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <span className={`w-2 h-2 rounded-full bg-${statusColor}-500 flex-shrink-0 mt-0.5`} />
-                        <div>
-                          <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{item.recipient_name || formatProxy(item.proxy_value, item.proxy_type)}</p>
-                          <p className="text-[10px] text-gray-500">{new Date(t.created_at).toLocaleString('th-TH')}</p>
+                    <div key={t.id || i} className="flex justify-between items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors rounded-xl border border-transparent hover:border-gray-100 dark:hover:border-gray-700/50">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-3">
+                          <span className={`w-2 h-2 rounded-full bg-${statusColor}-500 flex-shrink-0 mt-0.5`} />
+                          <div>
+                            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{item.recipient_name || formatProxy(item.proxy_value, item.proxy_type)}</p>
+                            <p className="text-[10px] text-gray-500">{new Date(t.created_at).toLocaleString('th-TH')}</p>
+                          </div>
+                        </div>
+                        <div className="pl-5 mt-1">
+                          {t.is_verified_slip === true && <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">✓ สลิปถูกต้อง</span>}
+                          {t.is_verified_slip === false && <span className="inline-flex items-center gap-1 text-[10px] font-medium text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-md">✗ สลิปปลอม/ข้อมูลไม่ตรง</span>}
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right flex flex-col items-end gap-1">
                         <p className="text-sm font-bold text-gray-900 dark:text-white font-mono">฿{Number(t.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</p>
                         <p className={`text-[10px] font-medium text-${statusColor}-500 dark:text-${statusColor}-400`}>{statusText}</p>
+                        <button
+                          onClick={async () => {
+                            if (!t.slip_url) return
+                            try {
+                              const res = await fetch('/api/webhook/verify-slip', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ transaction_id: t.id, slip_url: t.slip_url })
+                              })
+                              const json = await res.json()
+                              if (json.success) {
+                                alert(`จำลองตรวจสอบสลิปแล้ว: ${json.message}`)
+                              }
+                            } catch (e) { console.error(e) }
+                          }}
+                          className="mt-1 text-[10px] bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                        >
+                          จำลองเช็คสลิป
+                        </button>
                       </div>
                     </div>
                   )
@@ -342,7 +445,7 @@ function DashboardModal({ item, onClose, onDelete }: { item: QrPayment; onClose:
             <h3 className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ml-1">การจัดการ</h3>
             <div className="space-y-2">
 
-              <button className="w-full flex items-center justify-between p-4 bg-white dark:bg-[#1A1F2C] border border-gray-200 dark:border-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all rounded-2xl group shadow-sm dark:shadow-none">
+              <button onClick={() => setShowApiDocs(!showApiDocs)} className="w-full flex items-center justify-between p-4 bg-white dark:bg-[#1A1F2C] border border-gray-200 dark:border-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all rounded-2xl group shadow-sm dark:shadow-none">
                 <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
                   <svg className="w-5 h-5 text-gray-400 group-hover:text-purple-500 dark:group-hover:text-purple-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -351,14 +454,271 @@ function DashboardModal({ item, onClose, onDelete }: { item: QrPayment; onClose:
                 </div>
                 <span className="text-[10px] bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 px-2.5 py-1 rounded-full font-medium">API / Webhook</span>
               </button>
-              <button className="w-full flex items-center justify-between p-4 bg-white dark:bg-[#1A1F2C] border border-gray-200 dark:border-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all rounded-2xl group shadow-sm dark:shadow-none">
+
+              {showApiDocs && (
+                <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl text-xs space-y-4 border border-gray-200 dark:border-gray-700 animate-fade-in">
+                  {/* Header */}
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm">การเชื่อมต่อผ่าน API</h4>
+                    <p className="text-gray-500 dark:text-gray-400">บอทเรียก API เพื่อสร้าง QR ตามยอดออเดอร์ลูกค้า รับสลิป แล้วส่งมาตรวจอัตโนมัติ</p>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
+                    <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 rounded">① สร้าง QR</span>
+                    <span>→</span>
+                    <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded">② รับสลิป</span>
+                    <span>→</span>
+                    <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded">③ ตรวจอัตโนมัติ</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="font-semibold text-purple-600 dark:text-purple-400">① บอทสร้าง QR Code ตามยอดออเดอร์ (POST)</span>
+                    <p className="text-gray-400">ส่งยอดเงินจริงจากออเดอร์ลูกค้ามา ไม่ต้องฟิกตัวเลขไว้ล่วงหน้า</p>
+                    <code className="block p-3 bg-[#0d1117] text-green-400 rounded-lg overflow-x-auto whitespace-pre font-mono text-[10px] leading-relaxed">{`POST /api/webhook/generate-qr
+Content-Type: application/json
+
+{
+  "payment_id": "${item.id}",
+  "amount": <ยอดเงินจริงจากออเดอร์>,
+  "order_id": "ORD-001"
+}
+
+// Response
+{
+  "success": true,
+  "transaction_id": "...",  // เก็บไว้ใช้ขั้นตอน ③
+  "qr_payload": "0002010102...",
+  "qr_image_url": "https://promptpay.io/..."
+}`}</code>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">② บอทรับสลิปจากลูกค้าและส่งมาตรวจ (POST)</span>
+                    <p className="text-gray-400">เมื่อลูกค้าส่งรูปสลิปในแชท บอทนำ URL รูปนั้นส่งมาตรวจ ระบบจะตัดสินใจเองว่าจริง/ปลอม</p>
+                    <code className="block p-3 bg-[#0d1117] text-blue-400 rounded-lg overflow-x-auto whitespace-pre font-mono text-[10px] leading-relaxed">{`POST /api/webhook/verify-slip
+Content-Type: application/json
+
+{
+  "transaction_id": "...",  // จากขั้นตอน ①
+  "slip_url": "<URL รูปสลิปที่ลูกค้าส่งในแชท>"
+}
+
+// Response
+{
+  "success": true,
+  "is_valid": true,      // true=จริง, false=ปลอม
+  "message": "ตรวจสอบสลิปผ่าน"
+}`}</code>
+                  </div>
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50 rounded-lg p-3 space-y-1">
+                    <p className="font-semibold text-emerald-700 dark:text-emerald-400">③ ระบบตรวจสอบสลิปอัตโนมัติ</p>
+                    <ul className="space-y-0.5 text-emerald-600/80 dark:text-emerald-400/70 list-disc list-inside">
+                      <li>สลิปจริง → สถานะเปลี่ยนเป็น <span className="font-semibold text-emerald-600 dark:text-emerald-400">สำเร็จ ✓</span></li>
+                      <li>สลิปปลอม → สถานะเปลี่ยนเป็น <span className="font-semibold text-rose-500">ล้มเหลว ✗</span> และบันทึกประวัติ</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+
+              <button onClick={() => setShowSlipTest(!showSlipTest)} className="w-full flex items-center justify-between p-4 bg-white dark:bg-[#1A1F2C] border border-gray-200 dark:border-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all rounded-2xl group shadow-sm dark:shadow-none">
                 <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                  <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 dark:group-hover:text-emerald-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
-                  <span className="text-sm font-medium">ส่งออกประวัติการชำระเงิน (CSV)</span>
+                  <span className="text-sm font-medium">ระบบตรวจสอบสลิป</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {transactions.filter(t => t.is_verified_slip === false).length > 0 && (
+                    <span className="text-[10px] bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 px-2 py-0.5 rounded-full font-semibold">
+                      ⚠ {transactions.filter(t => t.is_verified_slip === false).length} ปลอม
+                    </span>
+                  )}
+                  <span className="text-[10px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2.5 py-1 rounded-full font-medium">Auto</span>
                 </div>
               </button>
+
+              {showSlipTest && (
+                <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl text-xs space-y-3 border border-gray-200 dark:border-gray-700 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">ระบบตรวจสอบสลิปอัตโนมัติ</h4>
+                      <p className="text-gray-500 dark:text-gray-400 mt-0.5">ระบบตรวจสอบสลิปทุกรายการที่โอนเข้ามาโดยอัตโนมัติ</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">ทำงานอยู่</span>
+                    </div>
+                  </div>
+
+                  {/* สรุปสถิติสลิป */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-white dark:bg-gray-900 rounded-lg p-2 text-center border border-gray-100 dark:border-gray-700">
+                      <p className="text-lg font-bold text-gray-900 dark:text-white">{transactions.length}</p>
+                      <p className="text-[10px] text-gray-500">ทั้งหมด</p>
+                    </div>
+                    <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-2 text-center border border-emerald-100 dark:border-emerald-800/50">
+                      <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{transactions.filter(t => t.is_verified_slip === true).length}</p>
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400">สลิปจริง</p>
+                    </div>
+                    <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-2 text-center border border-rose-100 dark:border-rose-800/50">
+                      <p className="text-lg font-bold text-rose-600 dark:text-rose-400">{transactions.filter(t => t.is_verified_slip === false).length}</p>
+                      <p className="text-[10px] text-rose-600 dark:text-rose-400">สลิปปลอม</p>
+                    </div>
+                  </div>
+
+                  {/* รายการสลิป */}
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {transactions.length === 0 ? (
+                      <div className="text-center py-6 text-gray-400">
+                        <svg className="w-8 h-8 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p>ยังไม่มีประวัติการส่งสลิป</p>
+                      </div>
+                    ) : (
+                      transactions.map((t, i) => {
+                        const isFake = t.is_verified_slip === false
+                        const isReal = t.is_verified_slip === true
+                        const isPending = t.is_verified_slip === null || t.is_verified_slip === undefined
+                        return (
+                          <div key={t.id || i} className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 ${
+                            isFake ? 'bg-rose-50 border-rose-200 dark:bg-rose-900/20 dark:border-rose-700/50'
+                            : isReal ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700/50'
+                            : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
+                          }`}>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                {isFake && <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">✗ สลิปปลอม</span>}
+                                {isReal && <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">✓ สลิปจริง</span>}
+                                {isPending && <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">⏳ รอตรวจสอบ</span>}
+                                <span className="text-[10px] font-mono font-semibold text-gray-900 dark:text-white">฿{Number(t.amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                              <p className="text-[10px] text-gray-500 mt-0.5 truncate">{new Date(t.created_at).toLocaleString('th-TH')}</p>
+                              {isFake && t.error_message && (
+                                <p className="text-[10px] text-rose-500 mt-0.5 truncate">{t.error_message}</p>
+                              )}
+                            </div>
+                            <button
+                              disabled={!t.slip_url}
+                              onClick={async () => {
+                                if (!t.slip_url) return
+                                const res = await fetch('/api/webhook/verify-slip', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ transaction_id: t.id, slip_url: t.slip_url })
+                                })
+                                const json = await res.json()
+                                if (json.success) {
+                                  setTransactions(prev => prev.map(tx => tx.id === t.id ? { ...tx, is_verified_slip: json.is_valid, status: json.is_valid ? 'success' : 'failed', error_message: json.is_valid ? null : 'สลิปปลอมหรือตรวจสอบไม่ผ่าน' } : tx))
+                                }
+                              }}
+                              className="flex-shrink-0 text-[10px] px-2 py-1 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                              title={t.slip_url ? 'ตรวจสอบสลิปซ้ำ' : 'ไม่มีไฟล์สลิป'}
+                            >
+                              ตรวจซ้ำ
+                            </button>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+
+                  {/* ตรวจสลิปใหม่ */}
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-2">
+                    <p className="font-medium text-gray-700 dark:text-gray-300">ตรวจสลิปด้วย URL หรืออัปโหลดภาพ</p>
+
+                    {/* อัปโหลดรูปภาพ */}
+                    <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-all group">
+                      {testPreviewUrl ? (
+                        <div className="relative w-full h-full">
+                          <img src={testPreviewUrl} alt="slip preview" className="w-full h-full object-contain rounded-lg" />
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); setTestSlipFile(null); setTestPreviewUrl(''); setTestSlipUrl('') }}
+                            className="absolute top-1 right-1 bg-rose-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] hover:bg-rose-600"
+                          >✕</button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1 text-gray-400 group-hover:text-emerald-500 transition-colors">
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span className="text-[10px]">คลิกเพื่อเลือกรูปภาพสลิป</span>
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setTestSlipFile(file)
+                          setTestSlipUrl('')
+                          const url = URL.createObjectURL(file)
+                          setTestPreviewUrl(url)
+                        }}
+                      />
+                    </label>
+
+                    <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                      <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
+                      <span>หรือ</span>
+                      <div className="flex-1 border-t border-gray-200 dark:border-gray-700" />
+                    </div>
+
+                    <input
+                      type="url"
+                      value={testSlipUrl}
+                      onChange={e => { setTestSlipUrl(e.target.value); setTestSlipFile(null); setTestPreviewUrl('') }}
+                      placeholder="วาง URL สลิป (https://...) หรือใส่ 'fake' เพื่อจำลองสลิปปลอม"
+                      className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500 dark:text-white"
+                    />
+                    <button
+                      onClick={handleTestSlip}
+                      disabled={isTesting || (!testSlipUrl && !testSlipFile)}
+                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-xs"
+                    >
+                      {isTesting && <SpinnerIcon size={12} />}
+                      ตรวจสอบสลิป
+                    </button>
+                    {testResult && (
+                      <div className={`p-3 rounded-lg border ${testResult.success && testResult.is_valid ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-700' : 'bg-rose-50 border-rose-200 dark:bg-rose-900/20 dark:border-rose-700'}`}>
+                        <p className={`font-semibold text-xs ${testResult.success && testResult.is_valid ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                          {testResult.success && testResult.is_valid ? '✓ สลิปถูกต้อง — การชำระเงินสำเร็จ' : '✗ สลิปปลอม — การชำระเงินไม่สำเร็จ'}
+                        </p>
+                        <p className="text-gray-500 dark:text-gray-400 mt-1">{testResult.message || testResult.error}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              {/* ── ระบบขั้นสูง ── */}
+              <button onClick={() => setShowAdvanced(!showAdvanced)}
+                className="w-full flex items-center justify-between p-4 bg-white dark:bg-[#1A1F2C] border border-gray-200 dark:border-gray-800/60 hover:border-gray-300 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-all rounded-2xl group shadow-sm dark:shadow-none">
+                <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-amber-500 dark:group-hover:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                  <span className="text-sm font-medium">ระบบขั้นสูง</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2.5 py-1 rounded-full font-medium">LINE · Expiry · Blacklist</span>
+                  <svg className={`w-4 h-4 text-gray-400 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+              {showAdvanced && (
+                <div className="animate-fade-in">
+                  <SystemSettings
+                    paymentId={item.id}
+                    userId={item.user_id ?? ''}
+                    lineToken={(item as any).line_notify_token ?? null}
+                    expiresInMinutes={(item as any).expires_in_minutes ?? null}
+                    expiresAt={(item as any).expires_at ?? null}
+                    onUpdate={(fields) => setAdvancedFields(prev => ({...prev, ...fields}))}
+                  />
+                </div>
+              )}
 
               <button onClick={handleDelete} className="w-full flex items-center justify-center p-4 bg-white dark:bg-[#1A1F2C] border border-rose-200 dark:border-rose-900/30 hover:border-rose-300 dark:hover:border-rose-500/50 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all rounded-2xl group mt-4 shadow-sm dark:shadow-none">
                 <div className="flex items-center gap-2 text-rose-500 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
@@ -528,9 +888,12 @@ export default function ActiveQrPanel({ refreshKey }: { refreshKey?: number }) {
   const fetchActive = useCallback(async () => {
     setLoading(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
       const { data } = await supabase
         .from('qr_payments')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(10)
       setActiveItems(data ?? [])

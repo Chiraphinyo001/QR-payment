@@ -24,6 +24,7 @@ export interface Database {
           is_paused: boolean
           schedule_type: string | null
           schedule_time: string | null
+          order_id: string | null
         }
         Insert: {
           id?: string
@@ -43,6 +44,7 @@ export interface Database {
           is_paused?: boolean
           schedule_type?: string | null
           schedule_time?: string | null
+          order_id?: string | null
         }
         Update: Partial<Database['public']['Tables']['qr_payments']['Insert']>
       }
@@ -61,7 +63,7 @@ export interface Database {
           user_agent?: string | null
           ip_address?: string | null
         }
-        Update: never
+        Update: Partial<Database['public']['Tables']['qr_scan_logs']['Insert']>
       }
       qr_transactions: {
         Row: {
@@ -71,6 +73,9 @@ export interface Database {
           status: 'success' | 'failed' | 'pending'
           error_message: string | null
           created_at: string
+          slip_url: string | null
+          is_verified_slip: boolean | null
+          slip_data: any | null
         }
         Insert: {
           id?: string
@@ -79,8 +84,11 @@ export interface Database {
           status: 'success' | 'failed' | 'pending'
           error_message?: string | null
           created_at?: string
+          slip_url?: string | null
+          is_verified_slip?: boolean | null
+          slip_data?: any | null
         }
-        Update: never
+        Update: Partial<Database['public']['Tables']['qr_transactions']['Insert']>
       }
     }
     Functions: {
